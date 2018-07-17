@@ -23,7 +23,7 @@ func main() {
 
 	flag.StringVar(&commandOpt, "command", "cc", "one of: cc (credit card statement)")
 	flag.StringVar(&inputOpt, "input", "", "input file")
-	flag.StringVar(&parserOpt, "parser", "discover-card", "one of: discover-card")
+	flag.StringVar(&parserOpt, "parser", "discover-card", "one of: discover-card, fidelity-visa")
 	flag.Parse()
 
 	var err error
@@ -119,11 +119,16 @@ func handleStatement() error {
 
 func parse() (creditcards.Statement, error) {
 	var statement creditcards.Statement
+	var err error
 
 	switch parserOpt {
 	case "discover-card":
-		var err error
 		statement, err = creditcards.NewDiscoverCardStatement(inputOpt)
+		if err != nil {
+			return nil, err
+		}
+	case "fidelity-visa":
+		statement, err = creditcards.NewFidelityVisaStatement(inputOpt)
 		if err != nil {
 			return nil, err
 		}
@@ -131,12 +136,11 @@ func parse() (creditcards.Statement, error) {
 		return nil, fmt.Errorf("unknown parser '%s'", parserOpt)
 	}
 
-	var sum = 0
+	sum := 0
 	for entry := range statement.Entries() {
 		sum += entry.Amount
 	}
 
-	var err error
 	if sum != statement.Total() {
 		err = fmt.Errorf("sum of amounts %d does not match total %d", sum, statement.Total())
 	}

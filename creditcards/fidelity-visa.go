@@ -10,13 +10,21 @@ import (
 	"time"
 )
 
-type DiscoverCardStatement struct {
+/*
+ Manual steps:
+ - Open statement and get date range
+ - Download transactions from Fidelity for date range
+ - Rename file: mv ~/Downloads/download.csv ~/Downloads/Fidelity-Visa-Statement-20180716.csv
+ - Ensure output total matches statement
+*/
+
+type FidelityVisaStatement struct {
 	date    time.Time
 	total   int
 	entries []Entry
 }
 
-func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
+func NewFidelityVisaStatement(filename string) (*FidelityVisaStatement, error) {
 	in, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -24,7 +32,7 @@ func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
 
 	defer in.Close()
 
-	statementDate, err := parseDate(filename)
+	statementDate, err := parseDateFromFilename(filename)
 	if err != nil {
 		return nil, fmt.Errorf("parsing date from filename '%s': %v", filename, err)
 	}
@@ -48,22 +56,22 @@ func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
 			continue
 		}
 
-		// Trans. Date,Post Date,Description,Amount,Category
-		desc := record[2]
-		cat := record[4]
-
-		if cat == "Payments and Credits" && strings.HasPrefix(desc, "DIRECTPAY ") {
+		// Date,Transaction,Name,Memo,Amount
+		trans := record[1]
+		if trans != "DEBIT" {
 			continue
 		}
 
-		date, err := time.Parse("01/02/2006", record[0])
+		desc := record[2]
+
+		date, err := time.Parse("1/2/2006", record[0])
 		if err != nil {
 			return nil, fmt.Errorf("parsing date '%s': %v", record[0], err)
 		}
 
-		amountStr := strings.Split(record[3], ".")
+		amountStr := strings.Split(record[4], ".")
 		if len(amountStr) != 2 {
-			return nil, fmt.Errorf("parsing amount '%s'", record[3])
+			return nil, fmt.Errorf("parsing amount '%s'", record[4])
 		}
 
 		dollars, err := strconv.Atoi(amountStr[0])
@@ -80,29 +88,29 @@ func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
 			return nil, fmt.Errorf("invalid cents '%d'", cents)
 		}
 
-		amount := 100*dollars + cents
+		amount := -100*dollars + cents
 
 		total += amount
 
 		entries = append(entries, Entry{desc, date, amount})
 	}
 
-	return &DiscoverCardStatement{statementDate, total, entries}, nil
+	return &FidelityVisaStatement{statementDate, total, entries}, nil
 }
 
-func (*DiscoverCardStatement) Name() string {
-	return "Discover Card"
+func (*FidelityVisaStatement) Name() string {
+	return "Fidelity Visa"
 }
 
-func (s *DiscoverCardStatement) Date() time.Time {
+func (s *FidelityVisaStatement) Date() time.Time {
 	return s.date
 }
 
-func (s *DiscoverCardStatement) Total() int {
+func (s *FidelityVisaStatement) Total() int {
 	return s.total
 }
 
-func (s *DiscoverCardStatement) Entries() <-chan Entry {
+func (s *FidelityVisaStatement) Entries() <-chan Entry {
 	ch := make(chan Entry)
 
 	go func() {
