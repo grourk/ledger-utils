@@ -18,8 +18,8 @@ type Statement interface {
 	Entries() <-chan Entry
 }
 
-func parseDateFromFilename(filename string) (time.Time, error) {
-	split := strings.Split(filename, "-")
+func parseDateFromFilename(filename, delim string) (time.Time, error) {
+	split := strings.Split(filename, delim)
 	last := split[len(split)-1]
 	dateStr := strings.Split(last, ".")[0]
 	return time.Parse("20060102", dateStr)

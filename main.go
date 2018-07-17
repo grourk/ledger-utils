@@ -23,7 +23,7 @@ func main() {
 
 	flag.StringVar(&commandOpt, "command", "cc", "one of: cc (credit card statement)")
 	flag.StringVar(&inputOpt, "input", "", "input file")
-	flag.StringVar(&parserOpt, "parser", "discover-card", "one of: discover-card, fidelity-visa")
+	flag.StringVar(&parserOpt, "parser", "discover-card", "one of: discover-card, fidelity-visa, chase-visa, amazon-visa")
 	flag.Parse()
 
 	var err error
@@ -129,6 +129,16 @@ func parse() (creditcards.Statement, error) {
 		}
 	case "fidelity-visa":
 		statement, err = creditcards.NewFidelityVisaStatement(inputOpt)
+		if err != nil {
+			return nil, err
+		}
+	case "chase-visa":
+		statement, err = creditcards.NewChaseVisaStatement(inputOpt)
+		if err != nil {
+			return nil, err
+		}
+	case "amazon-visa":
+		statement, err = creditcards.NewAmazonVisaStatement(inputOpt)
 		if err != nil {
 			return nil, err
 		}

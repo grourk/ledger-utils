@@ -32,7 +32,7 @@ func NewFidelityVisaStatement(filename string) (*FidelityVisaStatement, error) {
 
 	defer in.Close()
 
-	statementDate, err := parseDateFromFilename(filename)
+	statementDate, err := parseDateFromFilename(filename, "-")
 	if err != nil {
 		return nil, fmt.Errorf("parsing date from filename '%s': %v", filename, err)
 	}
