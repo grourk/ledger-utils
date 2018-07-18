@@ -19,7 +19,7 @@ type Guesser struct {
 	filename string
 	records  map[string]string // normalized description -> category
 	matcher  *closestmatch.ClosestMatch
-	orders   []amazonOrder
+	orders   []*amazonOrder
 }
 
 type amazonOrder struct {
@@ -44,11 +44,11 @@ func getFilename() (string, error) {
 	return usr.HomeDir + "/.ledger-utils-guesses", nil
 }
 
-func parseAmazonOrders(filename string) ([]amazonOrder, error) {
+func parseAmazonOrders(filename string) ([]*amazonOrder, error) {
 	if strings.HasPrefix(filename, "~/") {
 		usr, err := user.Current()
 		if err != nil {
-			return nil, fmt.Errorf("expanding path: %v", err)
+			return nil, fmt.Errorf("getting current user: %v", err)
 		}
 		filename = filepath.Join(usr.HomeDir, filename[2:])
 	}
@@ -60,10 +60,9 @@ func parseAmazonOrders(filename string) ([]amazonOrder, error) {
 	defer in.Close()
 
 	r := csv.NewReader(in)
-	orders := make([]amazonOrder, 0, 100)
+	orders := make([]*amazonOrder, 0, 100)
 	first := true
 
-	// TODO: join orders w/ same order id into single order
 	for {
 		record, err := r.Read()
 		if err == io.EOF {
@@ -105,7 +104,7 @@ func parseAmazonOrders(filename string) ([]amazonOrder, error) {
 			return nil, err
 		}
 
-		order := amazonOrder{title, pricePerUnit, quantity, shipmentDate, subtotalTax, total}
+		order := &amazonOrder{title, pricePerUnit, quantity, shipmentDate, subtotalTax, total}
 		orders = append(orders, order)
 	}
 
@@ -113,7 +112,7 @@ func parseAmazonOrders(filename string) ([]amazonOrder, error) {
 }
 
 func NewGuesser(amazonOrdersFilenames []string) (*Guesser, error) {
-	var orders []amazonOrder
+	var orders []*amazonOrder
 	for _, fn := range amazonOrdersFilenames {
 		os, err := parseAmazonOrders(fn)
 		if err != nil {
@@ -181,24 +180,42 @@ func (g *Guesser) Close() {
 }
 
 func (g *Guesser) matchAmazonOrder(entry Entry) *amazonOrder {
-	for _, order := range g.orders {
-		// Match orders that charged on shipment date or day after
-		if order.shipmentDate == entry.Date || order.shipmentDate.AddDate(0, 0, 1) == entry.Date {
-			// And matches total give or take a cent
-			if order.total == entry.Amount || order.total-1 == entry.Amount || order.total+1 == entry.Amount {
-				return &order
-			}
+	// Choose candidate with lowest price delta
+	var candidate *amazonOrder
+	var minDelta int
 
-			// Or matches 75-90% discount off item subtotal (i.e., subscribe & save)
-			low := int(float64(order.pricePerUnit*order.quantity)*0.75) + order.subtotalTax
-			high := int(float64(order.pricePerUnit*order.quantity)*0.90) + order.subtotalTax
-			if low <= entry.Amount && entry.Amount <= high {
-				return &order
+	for _, order := range g.orders {
+		// Match orders that were chargee on shipment date or day after
+		if order.shipmentDate == entry.Date || order.shipmentDate.AddDate(0, 0, 1) == entry.Date {
+			if order.total == entry.Amount || order.total-1 == entry.Amount || order.total+1 == entry.Amount {
+				// And matches total give or take a cent
+				delta := order.total - entry.Amount
+				if delta < 0 {
+					delta = -delta
+				}
+				if candidate == nil || delta < minDelta {
+					candidate = order
+					minDelta = delta
+				}
+			} else {
+				// Or matches up to 5-25% discount off item subtotal (i.e., subscribe & save)
+				low := int(float64(order.pricePerUnit*order.quantity)*0.75) + order.subtotalTax
+				high := int(float64(order.pricePerUnit*order.quantity)*0.95) + order.subtotalTax + 1
+				if low <= entry.Amount && entry.Amount <= high {
+					delta := entry.Amount - low
+					if (high - entry.Amount) < delta {
+						delta = high - entry.Amount
+					}
+					if candidate == nil || delta < minDelta {
+						candidate = order
+						minDelta = delta
+					}
+				}
 			}
 		}
 	}
 
-	return nil
+	return candidate
 }
 
 func (g *Guesser) MakeGuess(entry Entry) (string, string) {
