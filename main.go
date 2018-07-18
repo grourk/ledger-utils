@@ -15,16 +15,23 @@ import (
 var commandOpt string
 var inputOpt string
 var parserOpt string
+var amazonOrdersFilenamesOpt []string
 
 var stdinReader *bufio.Reader
 
 func main() {
 	stdinReader = bufio.NewReader(os.Stdin)
 
+	var amazonOrdersFilenames string
 	flag.StringVar(&commandOpt, "command", "cc", "one of: cc (credit card statement)")
 	flag.StringVar(&inputOpt, "input", "", "input file")
 	flag.StringVar(&parserOpt, "parser", "discover-card", "one of: discover-card, fidelity-visa, chase-visa, amazon-visa")
+	flag.StringVar(&amazonOrdersFilenames, "orders", "", "amazon orders files")
 	flag.Parse()
+
+	if amazonOrdersFilenames != "" {
+		amazonOrdersFilenamesOpt = strings.Split(amazonOrdersFilenames, ",")
+	}
 
 	var err error
 
@@ -78,7 +85,7 @@ func handleStatement() error {
 		return err
 	}
 
-	guesser, err := creditcards.NewGuesser()
+	guesser, err := creditcards.NewGuesser(amazonOrdersFilenamesOpt)
 	if err != nil {
 		return err
 	}
@@ -92,9 +99,17 @@ func handleStatement() error {
 		amountFmt := formatAmount(entry.Amount)
 		dateFmt := entry.Date.Format("2006/01/02")
 		desc := entry.Description
-		guess := guesser.MakeGuess(entry)
+		guess, order := guesser.MakeGuess(entry)
 
-		category, err := readInput(guess, "%s %-8s %-75s (%s): ", dateFmt, amountFmt, desc, guess)
+		if order != "" {
+			desc = order
+		}
+
+		if len(desc) > 85 {
+			desc = desc[0:85]
+		}
+
+		category, err := readInput(guess, "%s %-8s %-85s (%s): ", dateFmt, amountFmt, desc, guess)
 		if err != nil {
 			return err
 		}
@@ -102,7 +117,11 @@ func handleStatement() error {
 			return fmt.Errorf("invalid category '%s'", category)
 		}
 
-		guesser.ConfirmGuess(entry, category)
+		guesser.ConfirmGuess(entry, order, category)
+
+		if len(desc) > 70 {
+			desc = desc[0:70]
+		}
 
 		fmt.Fprintf(&output, "  %-55s %-12s; %s - %s\n", category, amountFmt, dateFmt, desc)
 	}

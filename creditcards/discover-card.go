@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -21,7 +20,6 @@ func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	defer in.Close()
 
 	statementDate, err := parseDateFromFilename(filename, "-")
@@ -61,26 +59,10 @@ func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
 			return nil, fmt.Errorf("parsing date '%s': %v", record[0], err)
 		}
 
-		amountStr := strings.Split(record[3], ".")
-		if len(amountStr) != 2 {
-			return nil, fmt.Errorf("parsing amount '%s'", record[3])
-		}
-
-		dollars, err := strconv.Atoi(amountStr[0])
+		amount, err := parseAmount(record[4])
 		if err != nil {
-			return nil, fmt.Errorf("parsing dollars '%s'", amountStr[0])
+			return nil, err
 		}
-
-		cents, err := strconv.Atoi(amountStr[1])
-		if err != nil {
-			return nil, fmt.Errorf("parsing cents '%s'", amountStr[1])
-		}
-
-		if cents < 0 || cents > 99 {
-			return nil, fmt.Errorf("invalid cents '%d'", cents)
-		}
-
-		amount := 100*dollars + cents
 
 		total += amount
 

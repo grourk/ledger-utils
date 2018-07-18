@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -30,7 +28,6 @@ func newChaseVisaStatement(filename, name string) (*ChaseVisaStatement, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	defer in.Close()
 
 	statementDate, err := parseDateFromFilename(filename, "_")
@@ -70,26 +67,11 @@ func newChaseVisaStatement(filename, name string) (*ChaseVisaStatement, error) {
 
 		desc := record[3]
 
-		amountStr := strings.Split(record[4], ".")
-		if len(amountStr) != 2 {
-			return nil, fmt.Errorf("parsing amount '%s'", record[4])
-		}
-
-		dollars, err := strconv.Atoi(amountStr[0])
+		amount, err := parseAmount(record[4])
 		if err != nil {
-			return nil, fmt.Errorf("parsing dollars '%s'", amountStr[0])
+			return nil, err
 		}
-
-		cents, err := strconv.Atoi(amountStr[1])
-		if err != nil {
-			return nil, fmt.Errorf("parsing cents '%s'", amountStr[1])
-		}
-
-		if cents < 0 || cents > 99 {
-			return nil, fmt.Errorf("invalid cents '%d'", cents)
-		}
-
-		amount := -100*dollars + cents
+		amount = -amount
 
 		total += amount
 
