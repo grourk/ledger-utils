@@ -59,7 +59,7 @@ func NewDiscoverCardStatement(filename string) (*DiscoverCardStatement, error) {
 			return nil, fmt.Errorf("parsing date '%s': %v", record[0], err)
 		}
 
-		amount, err := parseAmount(record[4])
+		amount, err := parseAmount(record[3])
 		if err != nil {
 			return nil, err
 		}
